@@ -1,0 +1,22 @@
+#ifndef KTENSOR_HPP
+#define KTENSOR_HPP
+
+#define KTENSOR_MDSPAN_NAMESPACE @KTENSOR_MDSPAN_NAMESPACE@
+#define KTENSOR_RANDOM_INIT @KTENSOR_RANDOM_INIT_FLAG@
+
+#if @KTENSOR_USE_KOKKOS_FLAG@
+#include "@KTENSOR_KOKKOS_MDSPAN_DIR@/mdspan.hpp"
+#else
+#include <mdspan>
+#endif
+
+#include "Auxiliary.hpp"
+#include "Checks.hpp"
+#include "NestedLoops.hpp"
+#include "Macros.hpp"
+#include "Expression.hpp"
+#include "SpecialTensors.hpp"
+#include "Operations.hpp"
+#include "Functions.hpp"
+
+#endif // KTENSOR_HPP

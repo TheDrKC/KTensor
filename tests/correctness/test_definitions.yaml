@@ -1,0 +1,938 @@
+tests:
+  - name: assign scalar to expression
+    expression: A(i,j) = 1;
+    indices:
+      - symbol: i
+      - symbol: j
+    tensors:
+      - name: A
+        extents: [i,j]
+    check: A(ii,jj) == 1;
+
+  - name: assign scalar to tensor
+    expression: A = 1;
+    indices:
+      - symbol: i
+      - symbol: j
+    tensors:
+      - name: A
+        extents: [i,j]
+    check: A(ii,jj) == 1;
+
+  - name: direct copy of expressions
+    expression: A(i,j) = B(i,j);
+    indices:
+      - symbol: i
+      - symbol: j
+    tensors:
+      - name: A
+        extents: [i,j]
+      - name: B
+        extents: [i,j]
+    check: A(ii,jj) == B(ii,jj);
+
+  - name: copy with reordering
+    expression: A(k,i,j) = B(j,k,i);
+    indices:
+      - symbol: i
+      - symbol: j
+      - symbol: k
+    tensors:
+      - name: A
+        extents: [k,i,j]
+      - name: B
+        extents: [j,k,i]
+    check: A(kk,ii,jj) == B(jj,kk,ii);
+
+  - name: addition with no common indices
+    expression: A(l,k,j,i) = B(i,j) + C(k,l);
+    indices:
+      - symbol: i
+      - symbol: j
+      - symbol: k
+      - symbol: l
+    tensors:
+      - name: A
+        extents: [l,k,j,i]
+      - name: B
+        extents: [i,j]
+      - name: C
+        extents: [k,l]
+    check: A(ll,kk,jj,ii) == B(ii,jj) + C(kk,ll);
+
+  - name: subtraction with no common indices
+    expression: A(l,k,j,i) = B(i,j) - C(k,l);
+    indices:
+      - symbol: i
+      - symbol: j
+      - symbol: k
+      - symbol: l
+    tensors:
+      - name: A
+        extents: [l,k,j,i]
+      - name: B
+        extents: [i,j]
+      - name: C
+        extents: [k,l]
+    check: A(ll,kk,jj,ii) == B(ii,jj) - C(kk,ll);
+
+  - name: addition with one common index
+    expression: A(i,j,k) = B(i,j) + C(j,k);
+    indices:
+      - symbol: i
+      - symbol: j
+      - symbol: k
+    tensors:
+      - name: A
+        extents: [i,j,k]
+      - name: B
+        extents: [i,j]
+      - name: C
+        extents: [j,k]
+    check: A(ii,jj,kk) == B(ii,jj) + C(jj,kk);
+
+  - name: addition with one common index - mixed types
+    expression: A(i,j,k) = B(i,j) + C(j,k);
+    indices:
+      - symbol: i
+      - symbol: j
+      - symbol: k
+    tensors:
+      - name: A
+        extents: [i,j,k]
+        scalar type: double
+      - name: B
+        extents: [i,j]
+        scalar type: double
+      - name: C
+        extents: [j,k]
+    check: A(ii,jj,kk) == B(ii,jj) + C(jj,kk);
+
+  - name: addition with contraction in one term
+    expression: A(i,k) = B(i,j,j) + C(k,i);
+    indices:
+      - symbol: i
+      - symbol: j
+      - symbol: k
+    tensors:
+      - name: A
+        extents: [i,k]
+      - name: B
+        extents: [i,j,j]
+      - name: C
+        extents: [k,i]
+    inside loop:
+      - int total = 0;
+      - for(int t=0; t<ext_j; ++t){
+      -   total += B(ii,t,t);
+      - "}"
+    check: A(ii,kk) == total + C(kk,ii);
+
+  - name: internal contractions reusing index with new dimension
+    expression: A(i,j) = B(i,k,k,j) + C(k,j,k,i);
+    indices:
+      - symbol: i
+      - symbol: j
+      - symbol: p
+        forms loop: False
+      - symbol: q
+        forms loop: False
+    setup:
+      - Index<'k'> k;
+    tensors:
+      - name: A
+        extents: [i,j]
+      - name: B
+        extents: [i,p,p,j]
+      - name: C
+        extents: [q,j,q,i]
+    inside loop:
+      - int total1 = 0;
+      - for(int t=0; t<ext_p; ++t){
+      -   total1 += B(ii,t,t,jj);
+      - "}"
+      - int total2 = 0;
+      - for(int t=0; t<ext_q; ++t){
+      -   total2 += C(t,jj,t,ii);
+      - "}"
+    check: A(ii,jj) == total1 + total2;
+
+  - name: left scalar multiplication
+    expression: A(i,j) = factor*B(i,j);
+    indices:
+      - symbol: i
+      - symbol: j
+    tensors:
+      - name: A
+        extents: [i,j]
+      - name: B
+        extents: [i,j]
+    setup:
+      - constexpr int factor = 7;
+    check: A(ii,jj) == factor*B(ii,jj);
+
+  - name: right scalar multiplication
+    expression: A(i,j) = B(i,j)*factor;
+    indices:
+      - symbol: i
+      - symbol: j
+    tensors:
+      - name: A
+        extents: [i,j]
+      - name: B
+        extents: [i,j]
+    setup:
+      - constexpr int factor = 7;
+    check: A(ii,jj) == factor*B(ii,jj);
+
+  - name: scalar multiplication with addition
+    expression: A(i,j) = B(i,j) + factor*C(j,i);
+    indices:
+      - symbol: i
+      - symbol: j
+    tensors:
+      - name: A
+        extents: [i,j]
+      - name: B
+        extents: [i,j]
+      - name: C
+        extents: [j,i]
+    setup:
+      - constexpr int factor = 3;
+    check: A(ii,jj) == B(ii,jj) + factor*C(jj,ii);
+
+  - name: left scalar division
+    expression: A(i,j) = factor/B(i,j);
+    indices:
+      - symbol: i
+      - symbol: j
+    tensors:
+      - name: A
+        scalar type: double
+        extents: [i,j]
+      - name: B
+        extents: [i,j]
+    setup:
+      - constexpr double factor = 3.14;
+      # Prevent division by zero
+      - for(int ii=0; ii<ext_i; ++ii){
+      -   for(int jj=0; jj<ext_j; ++jj){
+      -      if (std::abs(B(ii,jj)) < 1e-4){
+      -        B(ii,jj) = 1.0;
+      -     "}"
+      -   "}"
+      - "}"
+    check: std::abs(A(ii,jj) - factor/B(ii,jj)) < 1e-6;
+
+  - name: right scalar division
+    expression: A(i,j) = B(i,j)/factor;
+    indices:
+      - symbol: i
+      - symbol: j
+    tensors:
+      - name: A
+        scalar type: double
+        extents: [i,j]
+      - name: B
+        extents: [i,j]
+    setup:
+      - constexpr double factor = -1.59;
+    check: std::abs(A(ii,jj) - B(ii,jj)/factor) < 1e-6;
+
+  - name: scalar division with addition
+    expression: A(i,j) = B(i,j) + factor/C(j,i);
+    indices:
+      - symbol: i
+      - symbol: j
+    tensors:
+      - name: A
+        scalar type: double
+        extents: [i,j]
+      - name: B
+        extents: [i,j]
+      - name: C
+        extents: [j,i]
+    setup:
+      - constexpr double factor = 0.265;
+      # Prevent division by zero
+      - for(int ii=0; ii<ext_i; ++ii){
+      -   for(int jj=0; jj<ext_j; ++jj){
+      -      if (std::abs(C(jj,ii)) < 1e-4){
+      -        C(jj,ii) = 1.0;
+      -     "}"
+      -   "}"
+      - "}"
+    check: std::abs(-A(ii,jj) + B(ii,jj) + factor/C(jj,ii)) < 1e-6;
+
+  - name: implicit summation over division
+    expression: A(i) = B(i,k)/C(k);
+    indices:
+      - symbol: i
+      - symbol: k
+    tensors:
+      - name: A
+        scalar type: double
+        extents: [i]
+      - name: B
+        extents: [i,k]
+      - name: C
+        extents: [k]
+    setup:
+      # Prevent division by zero
+      - for(int t=0; t<ext_k; ++t){
+      -    if (std::abs(C(t)) < 1e-4){
+      -      C(t) = 1.0;
+      -   "}"
+      - "}"
+    inside loop:
+      - double total = 0;
+      - for(int t=0; t<ext_k; ++t){
+      -   total += ((double) B(ii,t))/((double) C(t));
+      - "}"
+    check: std::abs(A(ii) - total) < 1e-6;
+
+  - name: assignment to expression of greater rank
+    expression: A(k,i,j) = B(i,k);
+    indices:
+      - symbol: i
+      - symbol: j
+      - symbol: k
+    tensors:
+      - name: A
+        extents: [k,i,j]
+      - name: B
+        extents: [i,k]
+    check: A(kk,ii,jj) == B(ii,kk);
+
+  - name: assignment from internal contraction
+    expression: A(i) = B(j,i,j);
+    indices:
+      - symbol: i
+      - symbol: j
+    tensors:
+      - name: A
+        extents: [i]
+      - name: B
+        extents: [j,i,j]
+    inside loop:
+      - int total = 0;
+      - for(int t=0; t<ext_j; ++t){
+      -   total += B(t,ii,t);
+      - "}"
+    check: A(ii) == total;
+
+  - name: multiple internal contractions
+    expression: A(k) = B(i,j,k,j,i);
+    indices:
+      - symbol: i
+      - symbol: j
+      - symbol: k
+    tensors:
+      - name: A
+        extents: [k]
+      - name: B
+        extents: [i,j,k,j,i]
+    inside loop:
+      - int total = 0;
+      - for(int a=0; a<ext_i; ++a){
+      -   for(int b=0; b<ext_j; ++b){
+      -     total += B(a,b,kk,b,a);
+      - "}"
+      - "}"
+    check: A(kk) == total;
+
+  - name: extract diagonal
+    expression: A(i) = B(i,i,i);
+    indices:
+      - symbol: i
+    tensors:
+      - name: A
+        extents: [i]
+      - name: B
+        extents: [i,i,i]
+    check: A(ii) == B(ii,ii,ii);
+
+  - name: external contraction
+    expression: A(i,k) = B(i,j)*C(j,k);
+    indices:
+      - symbol: i
+      - symbol: j
+      - symbol: k
+    tensors:
+      - name: A
+        extents: [i,k]
+      - name: B
+        extents: [i,j]
+      - name: C
+        extents: [j,k]
+    inside loop:
+      - int total=0;
+      - for(int t=0; t<ext_j; ++t){
+      -   total += B(ii,t)*C(t,kk);
+      - "}"
+    check: A(ii,kk) == total;
+
+  - name: external contraction mixing types
+    expression: A(i,k) = B(i,j)*C(j,k);
+    indices:
+      - symbol: i
+      - symbol: j
+      - symbol: k
+    tensors:
+      - name: A
+        extents: [i,k]
+        scalar type: double
+      - name: B
+        extents: [i,j]
+      - name: C
+        extents: [j,k]
+        scalar type: double
+    inside loop:
+      - int total=0;
+      - for(int t=0; t<ext_j; ++t){
+      -   total += B(ii,t)*C(t,kk);
+      - "}"
+    check: A(ii,kk) == total;
+
+  - name: multiple external contractions
+    expression: A(i,j,k) = B(l,i)*C(l,j)*D(l,k);
+    indices:
+      - symbol: i
+      - symbol: j
+      - symbol: k
+      - symbol: l
+    tensors:
+      - name: A
+        extents: [i,j,k]
+      - name: B
+        extents: [l,i]
+      - name: C
+        extents: [l,j]
+      - name: D
+        extents: [l,k]
+    inside loop:
+      - int total = 0;
+      - for(int t=0; t<ext_l; ++t){
+      -   total += B(t,ii)*C(t,jj)*D(t,kk);
+      - "}"
+    check: A(ii,jj,kk) == total;
+
+  - name: external and internal contractions
+    expression: u(i) = A(i,j)*B(j,j) + B(i,k)*A(k,k);
+    indices:
+      - symbol: i
+    tensors:
+      - name: u
+        extents: [i]
+      - name: A
+        extents: [i,i]
+      - name: B
+        extents: [i,i]
+    setup:
+      - Index<'j'> j;
+      - Index<'k'> k;
+    inside loop:
+      - int abtrace = 0;
+      - int batrace = 0;
+      - for(int t=0; t<ext_i; ++t){
+      -   abtrace += A(ii,t)*B(t,t);
+      -   batrace += B(ii,t)*A(t,t);
+      - "}"
+    check: u(ii) == abtrace + batrace;
+
+  - name: distributive property
+    expression: A(i,j) = B(i,k)*(C(k,j) + D(j,k));
+    indices:
+      - symbol: i
+      - symbol: j
+      - symbol: k
+    tensors:
+      - name: A
+        extents: [i,j]
+      - name: B
+        extents: [i,k]
+      - name: C
+        extents: [k,j]
+      - name: D
+        extents: [j,k]
+    inside loop:
+      - int total1 = 0;
+      - int total2 = 0;
+      - for(int t=0; t<ext_k; ++t){
+      -    total1 += B(ii,t)*C(t,jj);
+      -    total2 += B(ii,t)*D(jj,t);
+      - "}"
+    check: A(ii,jj) == total1 + total2;
+
+  - name: distributive property over internal contractions
+    expression: A(i,j) = B(i,k)*(C(k,k,j) + D(j,k));
+    indices:
+      - symbol: i
+      - symbol: j
+      - symbol: k
+    tensors:
+      - name: A
+        extents: [i,j]
+      - name: B
+        extents: [i,k]
+      - name: C
+        extents: [k,k,j]
+      - name: D
+        extents: [j,k]
+    inside loop:
+      - int total1 = 0;
+      - int total2 = 0;
+      - for(int t=0; t<ext_k; ++t){
+      -    total1 += B(ii,t)*C(t,t,jj);
+      -    total2 += B(ii,t)*D(jj,t);
+      - "}"
+    check: A(ii,jj) == total1 + total2;
+
+  - name: assign scalar to slice
+    expression: A(1,j) = 4; A(i,2) = 5;
+    indices:
+      - symbol: i
+      - symbol: j
+    tensors:
+      - name: A
+        extents: [i,j]
+    check: (A(1,jj) == 4 || jj == 2) && A(ii,2) == 5;
+
+  - name: external contraction with slice
+    expression: A(i,j) = B(i,k)*C(k,j,1);
+    indices:
+      - symbol: i
+      - symbol: j
+      - symbol: k
+    tensors:
+      - name: A
+        extents: [i,j]
+      - name: B
+        extents: [i,k]
+      - name: C
+        extents: [k,j,i]
+    inside loop:
+      - int total = 0;
+      - for(int t=0; t<ext_k; ++t){
+      -   total += B(ii,t)*C(t,jj,1);
+      - "}"
+    check: A(ii,jj) == total;
+
+  - name: assign external contraction with slice to slice
+    expression: A(1,i,j) = B(i,k)*C(k,j,1);
+    indices:
+      - symbol: i
+      - symbol: j
+      - symbol: k
+    tensors:
+      - name: A
+        extents: [k,i,j]
+      - name: B
+        extents: [i,k]
+      - name: C
+        extents: [k,j,i]
+    inside loop:
+      - int total = 0;
+      - for(int t=0; t<ext_k; ++t){
+      -   total += B(ii,t)*C(t,jj,1);
+      - "}"
+    check: A(1,ii,jj) == total;
+
+  - name: sum with slice
+    expression: A(i,j) = B(1,i) + B(j,1);
+    indices:
+      - symbol: i
+      - symbol: j
+    tensors:
+      - name: A
+        extents: [i,j]
+      - name: B
+        extents: [j,i]
+    check: A(ii,jj) == B(1,ii) + B(jj,1);
+
+  - name: scalar multiplication with slice
+    expression: A(1,i) = 3*B(i,2);
+    indices:
+      - symbol: i
+      - symbol: d  # Dummy index just to test dynamic extents for the constant subscripts
+        forms loop: False
+    tensors:
+      - name: A
+        extents: [d,i]
+      - name: B
+        extents: [i,d]
+    check: A(1,ii) == 3*B(ii,2);
+
+  - name: assign to expression with repeated indices
+    expression: A(i,i) = v(i);
+    indices:
+      - symbol: i
+    tensors:
+      - name: A
+        extents: [i,i]
+      - name: v
+        extents: [i]
+    check: A(ii,ii) == v(ii);
+
+  - name: delta addition
+    expression: A(i,j) = B(j,i) + delta(i,j);
+    indices:
+      - symbol: i
+      - symbol: j
+        allow dynamic: False
+    tensors:
+      - name: A
+        extents: [i,j]
+      - name: B
+        extents: [j,i]
+      - name: delta
+        extents: []
+        tensor type: KroneckerDelta
+    check: "A(ii,jj) == B(jj,ii) + ((ii==jj) ? 1 : 0);"
+
+  - name: delta slice addition
+    expression: A(i,j) = B(j,i) + delta(1,j);
+    indices:
+      - symbol: i
+      - symbol: j
+        allow dynamic: False
+    tensors:
+      - name: A
+        extents: [i,j]
+      - name: B
+        extents: [j,i]
+      - name: delta
+        extents: []
+        tensor type: KroneckerDelta
+    check: "A(ii,jj) == B(jj,ii) + ((1==jj) ? 1 : 0);"
+
+  - name: epsilon cross product
+    expression: uxv(i) = epsilon(i,j,k)*u(j)*v(k);
+    indices:
+      - symbol: i
+        static extent: 3
+        allow dynamic: False
+      - symbol: j
+        static extent: 3
+        allow dynamic: False
+      - symbol: k
+        static extent: 3
+        allow dynamic: False
+    tensors:
+      - name: u
+        extents: [i]
+      - name: v
+        extents: [i]
+      - name: uxv
+        extents: [i]
+      - name: epsilon
+        extents: [i]
+        tensor type: LeviCivita
+    check: (uxv(0) == u(1)*v(2)-u(2)*v(1)) && (uxv(1) == u(2)*v(0) - u(0)*v(2)) && (uxv(2) == u(0)*v(1) - u(1)*v(0));
+
+  - name: tensor plus right scalar
+    expression: A(i,j) = u(i) + v(j) + 3;
+    indices:
+      - symbol: i
+      - symbol: j
+    tensors:
+      - name: A
+        extents: [i,j]
+      - name: u
+        extents: [i]
+      - name: v
+        extents: [j]
+    check: A(ii,jj) == u(ii) + v(jj) + 3;
+
+  - name: tensor plus left scalar
+    expression: A(i,j) = 3 + u(i) + v(j);
+    indices:
+      - symbol: i
+      - symbol: j
+    tensors:
+      - name: A
+        extents: [i,j]
+      - name: u
+        extents: [i]
+      - name: v
+        extents: [j]
+    check: A(ii,jj) == u(ii) + v(jj) + 3;
+
+  - name: tensor minus right scalar
+    expression: A(i,j) = u(i) + v(j) - 3;
+    indices:
+      - symbol: i
+      - symbol: j
+    tensors:
+      - name: A
+        extents: [i,j]
+      - name: u
+        extents: [i]
+      - name: v
+        extents: [j]
+    check: A(ii,jj) == u(ii) + v(jj) - 3;
+
+  - name: tensor minus left scalar
+    expression: A(i,j) = 3 - u(i) + v(j);
+    indices:
+      - symbol: i
+      - symbol: j
+    tensors:
+      - name: A
+        extents: [i,j]
+      - name: u
+        extents: [i]
+      - name: v
+        extents: [j]
+    check: A(ii,jj) == -u(ii) + v(jj) + 3;
+
+  - name: unary negation
+    expression: A(i,j) = -B(j,i);
+    indices:
+      - symbol: i
+      - symbol: j
+    tensors:
+      - name: A
+        extents: [i,j]
+      - name: B
+        extents: [j,i]
+    check: A(ii,jj) == -B(jj,ii);
+
+  - name: assignment from index
+    expression: M(i) = i;
+    indices:
+      - symbol: i
+    tensors:
+      - name: M
+        extents: [i]
+
+  - name: index sum
+    expression: M(i,j) = i+j;
+    indices:
+      - symbol: i
+      - symbol: j
+    tensors:
+      - name: M
+        extents: [i,j]
+
+  - name: index difference
+    expression: M(i,j) = i-j;
+    indices:
+      - symbol: i
+      - symbol: j
+    tensors:
+      - name: M
+        extents: [i,j]
+
+  - name: index product
+    expression: M(i,j) = i*j;
+    indices:
+      - symbol: i
+      - symbol: j
+    tensors:
+      - name: M
+        extents: [i,j]
+
+  - name: index quotient
+    expression: M(i,j) = i/(j+1);
+    indices:
+      - symbol: i
+      - symbol: j
+    tensors:
+      - name: M
+        scalar type: double
+        extents: [i,j]
+
+  - name: index unary negation
+    expression: M(i,j) = -(i+1)*(j+1);
+    indices:
+      - symbol: i
+      - symbol: j
+    tensors:
+      - name: M
+        extents: [i,j]
+
+  - name: index compound expression
+    expression: M(i,j,k) = i + j*k - i/(j+2);
+    indices:
+      - symbol: i
+      - symbol: j
+      - symbol: k
+    tensors:
+      - name: M
+        scalar type: double
+        extents: [i,j,k]
+
+  - name: assignment to slices from index
+    expression: M = 0; M(1,j) = j; M(i,2) = i+1;
+    check: "M(ii,jj) == ((jj==2) ? (ii+1) : ((ii==1) ? jj : 0));"
+    indices:
+      - symbol: i
+      - symbol: j
+    tensors:
+      - name: M
+        extents: [i,j]
+
+  - name: function of indices
+    expression: M(i,j) = exp(i) - atan2(2, i+j+1);
+    indices:
+      - symbol: i
+      - symbol: j
+    tensors:
+      - name: M
+        scalar type: double
+        extents: [i,j]
+
+  - name: function of expression
+    expression: M(i,j) = sin(A(j,i));
+    check: (std::abs(M(ii,jj) - sin(log1p(jj) - asinh(ii))) < 1.0e-8);
+    indices:
+      - symbol: i
+      - symbol: j
+    tensors:
+      - name: M
+        scalar type: double
+        extents: [i,j]
+      - name: A
+        scalar type: double
+        extents: [j,i]
+    setup:
+      - A(j,i) = log1p(j) - asinh(i);
+
+  - name: function of internal contraction
+    expression: M(i) = sqrt(abs(A(i,j,j)));
+    indices:
+      - symbol: i
+      - symbol: j
+        forms loop: false
+    tensors:
+      - name: M
+        scalar type: double
+        extents: [i]
+      - name: A
+        scalar type: double
+        extents: [i,j,j]
+    inside loop:
+      - double sum = 0.0;
+      - for(int jj=0; jj<ext_j; ++jj){
+      -   sum += A(ii,jj,jj);
+      - "}"
+    check: (std::abs(M(ii) - sqrt(abs(sum))) < 1.0e-8);
+
+  - name: external contraction over function
+    expression: M(i) = j*erf(A(i,j));
+    check: (std::abs(M(ii) - total) < 1.0e-8);
+    indices:
+      - symbol: i
+      - symbol: j
+        forms loop: false
+    tensors:
+      - name: M
+        scalar type: double
+        extents: [i]
+      - name: A
+        scalar type: double
+        extents: [i,j]
+    inside loop:
+      - double total = 0;
+      - for(int jj=0; jj<ext_j; ++jj){
+      -   total += jj*std::erf(A(ii,jj));
+      - "}"
+
+  - name: internal contraction to scalar
+    expression: q = (int) A(i,i);
+    check: q == total;
+    indices:
+      - symbol: i
+        forms loop: false
+    tensors:
+      - name: A
+        extents: [i,i]
+    setup:
+      - int q;
+      - int total = 0;
+    inside loop:
+      - for(int ii=0; ii<ext_i; ++ii){
+      -   total += A(ii,ii);
+      - "}"
+
+  - name: external contraction to scalar
+    expression: q = (int) (A(i,j)*B(j,i));
+    check: q == total;
+    indices:
+      - symbol: i
+        forms loop: false
+      - symbol: j
+        forms loop: false
+    tensors:
+      - name: A
+        extents: [i,j]
+      - name: B
+        extents: [j,i]
+    setup:
+      - int q;
+      - int total = 0;
+    inside loop:
+      - for(int ii=0; ii<ext_i; ++ii){
+      -   for(int jj=0; jj<ext_j; ++jj){
+      -     total += A(ii,jj)*B(jj,ii);
+      -   "}"
+      - "}"
+
+  - name: contraction over function to scalar
+    expression: q = (double) (A(k)*sin(1+k));
+    check: std::abs(q - total) < 1.0e-6;
+    indices:
+      - symbol: k
+        forms loop: false
+    tensors:
+      - name: A
+        extents: [k]
+        scalar type: double
+    setup:
+      - double q;
+      - double total = 0;
+    inside loop:
+      - for(int kk=0; kk<ext_k; ++kk){
+      -   total += A(kk)*sin(1+kk);
+      - "}"
+  - name: double contraction with functions
+    expression: A(i,j) = cos(i-j) + expm1(-k*b(k) - j)*atan2(k,j);
+    check: std::abs(A(ii,jj) - total) < 1.0e-6;
+    indices:
+      - symbol: i
+      - symbol: j
+      - symbol: k
+        forms loop: false
+    tensors:
+      - name: b
+        extents: [k]
+      - name: A
+        extents: [i,j]
+        scalar type: double
+    setup:
+      - b(k) = k;
+    inside loop:
+      - double total = cos(ii-jj);
+      - for(int kk=0; kk<ext_k; ++kk){
+      -   total += expm1(-kk*b(kk) - jj)*atan2(kk,jj);
+      - "}"
+  - name: handwritten loop
+    expression: for(int ii=0; ii<ext_i; ++ii) b(ii) = A(ii,j)*x(j);
+    check: b(ii) == total;
+    indices:
+      - symbol: j
+        forms loop: false
+      - symbol: i
+    tensors:
+      - name: A
+        extents: [i,j]
+      - name: x
+        extents: [j]
+      - name: b
+        extents: [i]
+    inside loop: 
+      - int total = 0;
+      - for(int jj=0; jj<ext_j; ++jj){
+      -    total += A(ii,jj)*x(jj);
+      - "}"

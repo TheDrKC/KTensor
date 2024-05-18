@@ -1,0 +1,228 @@
+tests:
+  - name: assignment with mismatched dimensions
+    indices:
+      - symbol: i
+        static extent: 3
+        allow dynamic: False
+      - symbol: j
+        static extent: 3
+        allow dynamic: False
+      - symbol: k
+        static extent: 2
+        allow dynamic: False
+    setup:
+      tensors:
+        - name: A
+          extents: [i,j]
+    with bug:
+      tensors:
+        - name: B
+          extents: [i,k]
+    correct:
+      tensors:
+        - name: B
+          extents: [i,j]
+    post:
+      - A(i,j) = B(i,j);
+
+  - name: RHS index not on LHS
+    indices:
+      - symbol: i
+    setup:
+      tensors:
+        - name: A
+          extents: [i,i]
+        - name: B
+          extents: [i,i]
+      lines:
+        - Index<'j'> j;
+    with bug:
+      lines:
+        - A(i,i) = B(i,j);
+    correct:
+      lines:
+        - A(i,j) = B(i,j);
+
+  - name: mismatched extents in internal contraction
+    indices:
+      - symbol: i
+        static extent: 3
+      - symbol: j
+        static extent: 2
+        allow dynamic: False
+    setup:
+      tensors:
+        - name: A
+          extents: [j]
+    with bug:
+      tensors:
+        - name: B
+          extents: [i,j]
+    correct:
+      tensors:
+        - name: B
+          extents: [i,i]
+    post:
+      - A(j) = B(i,i);
+
+  - name: mismatched extents in external contraction
+    indices:
+      - symbol: i
+      - symbol: j
+      - symbol: k
+        static extent: 2
+      - symbol: p
+        static extent: 7
+        allow dynamic: False
+    setup:
+      tensors:
+        - name: A
+          extents: [i,j]
+        - name: C
+          extents: [k,j]
+    with bug:
+      tensors:
+        - name: B
+          extents: [i,p]
+    correct:
+      tensors:
+        - name: B
+          extents: [i,k]
+    post:
+      - A(i,j) = B(i,k)*C(k,j);
+
+  - name: mismatched extents for free indices in sum
+    indices:
+      - symbol: i
+      - symbol: j
+        static extent: 4
+      - symbol: p
+        static extent: 7
+        allow dynamic: False
+    setup:
+      tensors:
+        - name: A
+          extents: [i,j]
+        - name: B
+          extents: [i,j]
+    with bug:
+      tensors:
+        - name: C
+          extents: [p,i]
+    correct:
+      tensors:
+        - name: C
+          extents: [j,i]
+    post:
+      - A(i,j) = B(i,j) + C(j,i);
+  
+  - name: RHS index not on LHS and not contracting
+    indices:
+      - symbol: i
+      - symbol: j
+      - symbol: k
+    setup:
+      tensors:
+        - name: A
+          extents: [i,j]
+        - name: B
+          extents: [j,i]
+    with bug:
+      tensors:
+        - name: C
+          extents: [i,k]
+      lines:
+        - A(i,j) = B(j,i) + C(i,k);
+    correct:
+      tensors:
+        - name: C
+          extents: [k,k]
+      lines:
+        - A(i,j) = B(j,i) + C(k,k);
+
+  - name: contraction with indefinite extent
+    indices:
+      - symbol: i
+      - symbol: k
+    setup:
+      tensors:
+        - name: A
+          extents: [i]
+    with bug:
+      lines:
+        - A(i) = k*k;
+    correct:
+      tensors:
+        - name: B
+          extents: [k]
+      lines:
+        - A(i) = k*B(k);
+
+  - name: contraction over delta
+    indices:
+      - symbol: i
+    setup:
+      tensors:
+        - name: A
+          extents: [i]
+        - name: delta
+          extents: []
+          tensor type: KroneckerDelta
+    with bug:
+      lines:
+        - Index<'k'> k;
+        - A(i) = delta(k,k);
+    correct:
+      lines:
+        - A(i) = delta(i,i);
+
+  - name: internal contraction to scalar
+    indices:
+      - symbol: i
+    setup:
+      tensors:
+        - name: A
+          extents: [i,i]
+    with bug:
+      lines:
+        - Index<'k'> k;
+        - int q = (int) A(i,k);
+    correct:
+      lines:
+        - int q = (int) A(i,i);
+
+  - name: external contraction to scalar
+    indices:
+      - symbol: i
+      - symbol: j
+    setup:
+      tensors:
+        - name: A
+          extents: [i,j]
+        - name: B
+          extents: [j,i]
+      lines:
+        - int q;
+    with bug:
+      lines:
+        - q = (int) (A(i,j) + B(j,i));
+    correct:
+      lines:
+        - q = (int) (A(i,j)*B(j,i));
+        
+  - name: contraction over function to scalar
+    indices:
+      - symbol: i
+    setup:
+      tensors:
+        - name: A
+          type: double
+          extents: [i]
+      lines:
+        - double q;
+    with bug:
+      lines:
+        - q = (double) (i+sin(A(i)));
+    correct:
+      lines:
+        - q = (double) (i*sin(A(i)));
